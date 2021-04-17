@@ -4,6 +4,6 @@ public class Test3 {
 
 	private void syso() {
 
-		System.out.println("Only local");
+		System.out.println("Updated in remote GIT rep");
 	}
 }
