@@ -495,3 +495,50 @@ js.executeScript("arguments[0].click();", element); // fallback when normal clic
 - Have 1-2 real "flaky test war stories" and 1 "framework redesign" story ready — these get asked almost every time (see Q20).
 
 Good luck with the interview!
+
+selenium Q&A:
+
+1. How to handle dynamic webElement?
+
+1.Start with explicit waits for visibility/clickability.
+
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import java.time.Duration;
+
+// Initialize explicit wait (Example uses Selenium 4 syntax)
+WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+// Wait until element is rendered in DOM
+WebElement dynamicElement = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("dynamic-id")));
+
+// Wait until element is visible and interactable
+WebElement clickableBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(@class,'active')]")));
+clickableBtn.click();
+
+
+2.Use text-based XPath or data-testid attributes wherever possible.
+
+3.For AJAX-heavy apps (common in Indian fintech/e-commerce sites), apply FluentWait with custom polling.
+
+4.we need to avoid relying on auto-generated IDs — which’re the most common cause of flaky tests.
+
+5. Dynamic Elements in the Page Object Model (POM)You cannot pass variables inside a standard @FindBy annotation because Java requires annotation parameters to be constant.
+
+To build runtime dynamic locators in POM, replace field properties with custom locator methods:java
+
+public class ProjectPage {
+    private WebDriver driver;
+
+    public ProjectPage(WebDriver driver) {
+        this.driver = driver;
+    }
+
+    // Dynamic locator method acting like a localized FindElement
+    public WebElement getDynamicRowItem(String rowName) {
+        String xpathExpression = String.format("//table[@id='projects']//tr[contains(., '%s')]", rowName);
+        return driver.findElement(By.xpath(xpathExpression));
+    }
+}
+
+
