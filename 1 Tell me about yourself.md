@@ -1,18 +1,21 @@
 Tell me about yourself
 
 Structure your answer in 4 parts (keep it 60–90 seconds):
-1. **Current role** – "I am working as an Senior Member Technical with  total 9 years of experience Software testing and from last 5 and half years worked in Broadridge."
+1. **Current role** – 
+"I am working as an Senior Member Technical with  total 9 years of experience Software testing and from last 5 and half years worked in Broadridge."
 
-2. **Tech stack** – "Currently I'm working both Manual-Functional and Autoimation - with 
-						Java, Selenium WebDriver, 
+2. **Tech stack** – 
+"Currently I'm working both Functional Testing and Autoimation - with 
+						Selenium WebDriver with Java, 
 						TestNG, Maven, and 
 						also worked on REST Assured for API automation in the previous project. 
 						along with CI/CD tools like Jenkins and version control using Git."
 					
-3. **What you do day-to-day** – "I design TC / Test plan/ Test strategy, defect reporting, and adding test scripts for regression suites for 
-						the completed functionality to automation frameworks at the end of the sprint"
+3. **What you do day-to-day** – 
+"I design TC / Test plan/ Test strategy, defect reporting, and adding test scripts for regression suites forthe completed functionality to automation frameworks at the end of the sprint"
 				
-4. **Wrap-up/why this role** – "I'm looking for an opportunity where I can apply my skillset of financial capital market  on a larger scale 
+4. **Wrap-up/why this role** – 
+"I'm looking for an opportunity where I can apply my skillset of financial capital market  on a larger scale 
 						and 
 
 
