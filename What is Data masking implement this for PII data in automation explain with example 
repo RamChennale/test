@@ -1,0 +1,90 @@
+What is Data masking, how to implement this for PII or securities data in test automation explain with example 
+
+**Data masking** = replacing real sensitive data (PII, account numbers, positions) with fake but realistic values so tests run without exposing actual data.
+
+**In Selenium, it applies in 3 places:**
+1. **Test data:** use masked/synthetic data, never real PII
+2. **Logs/reports:** mask values before logging or attaching to reports
+3. **Screenshots/UI validation:** verify the app masks fields (e.g., SSN shows `***-**-1234`)
+
+**Example (Java + Selenium + TestNG)**
+
+```java
+// MaskUtil.java: masking helpers
+public class MaskUtil {
+    public static String maskSSN(String ssn) {
+        return ssn.replaceAll("\\d{3}-\\d{2}-(\\d{4})", "***-**-$1");
+    }
+    public static String maskAccount(String acct) {
+        return "*".repeat(acct.length() - 4) + acct.substring(acct.length() - 4);
+    }
+    public static String maskEmail(String email) {
+        return email.replaceAll("(^.).*(@.*$)", "$1***$2");
+    }
+}
+```
+
+```java
+// TestDataFactory.java: synthetic data via Faker
+import com.github.javafaker.Faker;
+
+public class TestDataFactory {
+    private static final Faker faker = new Faker();
+    public static String name()    { return faker.name().fullName(); }
+    public static String email()   { return "user_" + faker.number().digits(6) + "@example.com"; }
+    public static String account() { return faker.number().digits(12); }
+}
+```
+
+```java
+// CustomerTest.java
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.testng.Assert;
+import org.testng.annotations.*;
+
+public class CustomerTest {
+    WebDriver driver;
+
+    @BeforeClass
+    public void setup() { driver = new ChromeDriver(); }
+
+    @Test
+    public void createCustomerAndVerifyMasking() {
+        String name = TestDataFactory.name();
+        String email = TestDataFactory.email();
+        String account = TestDataFactory.account();
+
+        driver.get("https://test-app.example.com/customer");
+        driver.findElement(By.id("name")).sendKeys(name);
+        driver.findElement(By.id("email")).sendKeys(email);
+        driver.findElement(By.id("account")).sendKeys(account);
+        driver.findElement(By.id("save")).click();
+
+        // Log only masked values
+        System.out.println("Created account: " + MaskUtil.maskAccount(account));
+
+        // Validate the UI masks the account number
+        String shown = driver.findElement(By.id("accountDisplay")).getText();
+        Assert.assertEquals(shown, MaskUtil.maskAccount(account));
+    }
+
+    @AfterClass
+    public void teardown() { driver.quit(); }
+}
+```
+
+**Dependency (Maven):**
+```xml
+<dependency>
+  <groupId>com.github.javafaker</groupId>
+  <artifactId>javafaker</artifactId>
+  <version>1.0.2</version>
+</dependency>
+```
+
+**Key rules**
+- Never hardcode real PII in scripts or data files
+- Never log or screenshot unmasked values
+- Load credentials/keys from env variables or a vault
+- Use masked DB copies or synthetic data for the test environment
