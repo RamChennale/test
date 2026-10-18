@@ -1,0 +1,36 @@
+Give me scenario based interview questions and answers for smart meter testing via software application
+
+
+**1. Meter readings in the MDM don't match the physical meter display. How do you investigate?**
+Trace the data path end to end: meter register → HES raw payload → MDM → billing. Check the CT/PT multiplier, unit scaling (Wh vs kWh), and timestamp or timezone shifts. Then compare raw DLMS/OBIS values at the HES with the MDM values to find where the mismatch starts. Raise a defect with the evidence from the layer where it diverges.
+
+**2. Interval data is missing for 3 hours for 500 meters. What do you check?**
+Look for a common factor: the same collector, region, or network. Check the HES logs for communication failures and whether meters backfilled data after reconnecting. Verify that MDM VEE (validation, estimation, editing) flagged the gaps and estimated them correctly. If the meters held the data but it never arrived, the problem is in the ingestion or retry logic.
+
+**3. How do you test the remote disconnect/reconnect command?**
+Cover the positive flow (command sent, relay opens, meter acknowledges, app status updates). Also test negatives:
+- Meter offline: the command should queue or time out gracefully.
+- Duplicate commands: they should be idempotent.
+- Unauthorized user: the command should be rejected.
+- Safety rules: no disconnect during a protected period.
+
+Verify audit logs and the customer notification.
+
+**4. The same reading arrives twice after a network retry. What's the expected behavior?**
+The system must be idempotent. Use a unique key (meter ID + timestamp + register) to deduplicate, so billing never double-counts. Test by replaying the same payload and confirming only one record is stored and the totals are unchanged. This is typical with MQTT QoS 1, which is at-least-once.
+
+**5. How do you test a firmware over-the-air (OTA) update on 10,000 meters?**
+Start with a pilot batch (1-2%) before a full rollout. Validate the signature and version checks, plus the post-update readings, tariff, and clock. Test failure cases like power loss mid-update and a weak signal, and confirm the meter rolls back to the old firmware. Monitor success rate and alarms, and keep a stop-rollout option.
+
+**6. A time-of-use (ToU) tariff change is pushed. How do you verify billing is correct?**
+Prepare test meters with known consumption across the peak, off-peak, and shoulder windows. Push the new tariff and confirm the meter acknowledges it. Then calculate the expected bill by hand or script and compare it to the billing output. Edge cases: the change taking effect mid-interval, daylight saving transitions, and meters that were offline during the push.
+
+**7. Many meters send data at the same time and the system slows down. How do you test it?**
+Run load and stress tests that simulate thousands of meters (with a simulator or tools like JMeter or k6) publishing at once. For example, simulate a post-outage "last gasp" and restoration storm. Measure ingestion rate, latency, broker or queue backlog, and DB write time. Pass criteria: no data loss, the backlog drains within the SLA, and the system recovers without manual intervention.
+
+**8. How do you test security?**
+Check that payloads are encrypted (TLS/AES) and messages are authenticated. Try replaying old commands, sending tampered or unsigned payloads, and using expired credentials. All should be rejected and logged. Also confirm that customers can only see their own data through the portal or API.
+
+**Bonus tip:** Interviewers like when you mention tools and evidence, such as DLMS simulators, Postman for APIs, SQL for data validation, and log tracing across HES and MDM.
+
+I can also write questions for a specific role (manual QA, automation, performance) or for DLMS/OBIS protocol-level testing if you'd like.
