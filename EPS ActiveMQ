@@ -1,0 +1,72 @@
+When meter if off, on sending Loadconnect onDemand reading, where exactly the Active MQ exist to keep the request active for 24 hours, between multiple applications such as HES, MDM and our Meter monitor GEMS Grid element management system
+
+
+
+
+ActiveMQ sits **between the applications, not at the meter**. It holds the *request* (not a connection to the meter) until the HES can deliver it.
+
+**Where it sits**
+
+```
+GEMS / MDM  →  [ActiveMQ broker]  →  HES  →  (network/collector)  →  Meter
+   (request)      queues/topics      (consumer)
+```
+
+- **GEMS/MDM (producer):** puts the on-demand read or Load Connect request on a queue, e.g. `hes.ondemand.request`.
+- **ActiveMQ broker:** stores the message persistently (KahaDB/JDBC store) with a TTL (time-to-live) of 24 hours.
+- **HES (consumer):** picks the message, tries to reach the meter, and sends the command over the meter network.
+- **Response path:** HES publishes the result to a reply queue/topic (e.g., `hes.ondemand.response`), and MDM and GEMS consume it, matched by a correlation ID.
+
+**What happens when the meter is off**
+
+1. The request is delivered to the HES (the broker's job is done at this point).
+2. The HES cannot reach the meter, so it **keeps the request in its own pending-command table/queue** and retries (on a schedule, or when the meter wakes up or sends a "last gasp/power restored" event).
+3. The 24-hour validity is usually enforced in two places:
+   - **ActiveMQ TTL** (`JMSExpiration`): if the HES is down or not consuming, the message expires or goes to the Dead Letter Queue (`ActiveMQ.DLQ`).
+   - **HES command expiry timestamp:** after 24 hours the HES marks the command EXPIRED/FAILED and sends a failure response back.
+
+**Key point:** The broker only guarantees the message gets from GEMS/MDM to the HES. The "wait for the meter to come back" logic is normally the HES's retry/pending-command engine, not ActiveMQ itself. Some designs do keep the message unacknowledged or redeliver it through the broker, but that is less common.
+
+**Persistent vs topic**
+- Use **queues** for commands (one consumer processes each request).
+- Use **topics** (or virtual topics) for events and responses that several apps need, such as MDM and GEMS both needing the result.
+
+**How to verify in testing**
+- Check the ActiveMQ web console (port 8161) for queue depth, enqueue/dequeue counts, and DLQ.
+- Check the message properties: `JMSExpiration`, `JMSCorrelationID`, `JMSReplyTo`.
+- Power off the meter, send the request, and confirm the broker's message is consumed by the HES and the HES shows the command as PENDING.
+- Restore power within 24 hours and confirm execution and a response to GEMS/MDM.
+- Wait past 24 hours and confirm the status goes to EXPIRED and the response reaches the sender.
+- Stop the HES consumer and confirm the message stays in the queue, then expires to the DLQ after the TTL.
+
+Exact queue names and who owns the retry vary by vendor (Itron, Landis+Gyr, Kamstrup, etc.), so check your HES integration spec. If you share your architecture or queue names, I can map the flow more precisely.
+
+
+
+
+
+№#############
+what is Active MQ 
+
+Apache ActiveMQ is an open-source message broker.** It's software that sits between applications and passes messages from one to another, so the sender and receiver don't need to be online or connected at the same time.
+
+**What it does**
+- Receives a message from a sender (producer), stores it, and delivers it to a receiver (consumer).
+- Supports **queues** (one consumer gets each message) and **topics** (all subscribers get a copy).
+- Can save messages to disk (**persistent**), so they survive a broker restart.
+- Supports **TTL** (message expiry), a **Dead Letter Queue** for failed or expired messages, and acknowledgements and retries.
+
+**Protocols it speaks**
+JMS (Java Message Service), AMQP, MQTT, STOMP, and OpenWire. So it can even act as an MQTT broker, which connects to your earlier question.
+
+**Why it's used (simple example)**
+GEMS sends a "Load Connect" request. If the HES is busy or restarting, the request isn't lost. ActiveMQ holds it and delivers it when the HES is ready. This is called **decoupling**: apps don't call each other directly.
+
+**Two flavors**
+- **ActiveMQ Classic:** the original, widely used in enterprise systems like utilities.
+- **ActiveMQ Artemis:** the newer, higher-performance version.
+
+**Compared with MQTT, from your earlier question**
+MQTT is a *protocol*. ActiveMQ is a *broker product* that implements several protocols, including MQTT, and adds queue features like persistence and DLQ.
+
+You can view it in the web console (default port 8161) to see queues, message counts, and failed messages.
