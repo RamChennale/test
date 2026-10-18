@@ -1,0 +1,42 @@
+What's BPM, how this is used in grid application, on Meter registration to complete registration process it used to take 72 hours in between Meter has to share data and continuously connected, where having different SLA how this works
+
+
+
+**BPM (Business Process Management)** is software that models, runs, and tracks a multi-step business workflow, including waits, timers, retries, and human approvals. Examples: Camunda, jBPM, IBM BPM, Pega, Oracle BPM.
+
+**Why grid apps use it**
+Meter registration isn't one action. It's a long-running process across several systems (GEMS, HES, MDM, billing, CIS), and it can take days. A BPM engine keeps the **state** of each registration and moves it step by step.
+
+**Typical 72-hour registration flow**
+
+1. **Initiate:** the installer or CIS creates a registration request (meter ID, location, transformer/feeder).
+2. **Provision in HES:** the BPM calls HES to add the meter, load keys and credentials.
+3. **Wait for first communication:** meter joins the network (a BPM "wait/event" step).
+4. **Validate connectivity:** the meter must stay connected and send data for a defined period (e.g., a stable link plus several consecutive interval reads).
+5. **Validate data:** MDM checks the reads are complete and sensible.
+6. **Link in GEMS:** assign to grid topology (feeder, transformer) for monitoring.
+7. **Activate:** billing/CIS is told, and the status becomes REGISTERED/ACTIVE.
+
+**How the 72 hours and the different SLAs work**
+
+Each step has its own **timer** in the BPM:
+
+- Step SLA examples: HES provisioning within 1 hour, first communication within 24 hours, data validation within 48 hours.
+- Overall SLA: the whole process must finish within 72 hours.
+- **Timer events:** if a step exceeds its SLA, the BPM triggers an action: retry, send an alert, escalate to a supervisor, or mark the registration FAILED.
+- **Continuous connectivity check:** the BPM periodically polls HES/MDM (or listens for events) and counts successful reads. If the meter drops, the counter may reset or the step keeps waiting until the SLA expires.
+- **Parallel and sequential steps:** some run in parallel (HES and GEMS setup), others wait for the previous one.
+
+**How it connects to ActiveMQ (your earlier question)**
+The BPM sends commands to HES/MDM/GEMS through **ActiveMQ queues** and receives responses and events back as messages. The BPM correlates them by a registration/correlation ID and advances the process.
+
+**What to test**
+- Happy path: the meter registers within 72 hours.
+- Meter never comes online: the step times out, the process escalates and fails correctly.
+- Meter connects, then drops: the connectivity counter or timer behaves as designed.
+- Duplicate or late messages: the process is not corrupted.
+- System restart mid-process: the BPM resumes from its saved state.
+- SLA timers: verify each timeout fires at the right time (tip: shorten the timers in the test environment).
+- Audit trail: every state change and timestamp is recorded.
+
+If you share the exact steps and SLAs from your project, I can map them into a flow with test cases.
