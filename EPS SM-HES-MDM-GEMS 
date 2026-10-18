@@ -1,0 +1,70 @@
+Meter uses which protocol to send data to HES
+
+It depends on the meter type and region, but the usual answer is **DLMS/COSEM** (the application protocol), carried over **TCP/IP or UDP** on the network link.
+
+**Common combinations**
+
+- **DLMS/COSEM (IEC 62056):** the standard in Europe, Asia, the Middle East and Africa. Data is identified by OBIS codes (e.g., 1.0.1.8.0.255 for active energy import). Usually runs over TCP or UDP, using the DLMS wrapper.
+- **ANSI C12.18 / C12.19 / C12.22:** North America. C12.22 is the network-capable version used by many AMI systems (Itron, Landis+Gyr, Sensus).
+- **Vendor-proprietary protocols:** some RF mesh systems use their own meter-to-collector format, which the collector converts before sending to the HES.
+- **MQTT or CoAP:** newer IoT-style meters (often NB-IoT/LTE-M) may publish readings over MQTT, or use CoAP/LwM2M on constrained links.
+
+**By network type**
+
+| Network | Typical protocol stack |
+|---|---|
+| Cellular (LTE/NB-IoT) | DLMS/COSEM over TCP/UDP, or MQTT |
+| RF mesh (Wi-SUN) | DLMS/COSEM or C12.22 over IPv6/UDP |
+| PLC (G3-PLC, PRIME) | DLMS/COSEM over IPv6 or PRIME/G3 convergence layer |
+| Zigbee/other RF | Vendor-specific or C12.22, converted at the collector |
+
+**Between collector and HES:** usually the same protocol over TCP/IP, or the collector converts to web services (SOAP/REST) or XML.
+
+**Security layer:** DLMS has its own encryption and authentication (AES-GCM with keys), and the link is often also protected by VPN or TLS.
+
+**To confirm for your project:** check the meter spec or HES integration document for the stated protocol, or capture the traffic in the test environment and look at the port and payload. Tell me the meter vendor and network type and I can narrow it down.
+
+
+####№########
+
+After receiving data at HES, data transfer from HES To MDM and our Meter monitor GEMS application, how it process paases these interfaces which protocol used in this process
+
+
+HES-to-MDM and HES-to-GEMS typically use **enterprise integration protocols**, not meter protocols. The common ones are **web services (SOAP/REST) and messaging through a broker like ActiveMQ**.
+
+**Flow**
+
+```
+Meter → HES ──┬──► MDM   (reads, events: bulk, reliable)
+              └──► GEMS  (alarms, status, near real-time)
+```
+
+**Protocols and standards by interface**
+
+- **IEC 61968-9 (CIM) over SOAP/XML:** the utility industry standard for meter reads and events. Messages like MeterReadings and EndDeviceEvents are XML, often sent via web services or JMS.
+- **JMS over ActiveMQ:** HES publishes reads/events to queues or topics. MDM and GEMS consume them asynchronously, matched by correlation IDs. Good for reliability and decoupling.
+- **SOAP/REST web services over HTTPS:** request/response calls, such as MDM asking for an on-demand read, or HES posting data to an MDM endpoint.
+- **MultiSpeak:** common in North America (SOAP/XML).
+- **File-based (SFTP/CSV/XML):** for bulk interval data in some legacy setups, e.g., batch files every 15 minutes or hourly.
+- **Database/ETL or Kafka:** modern designs stream high volumes through Kafka or direct DB integration.
+- **MQTT:** sometimes used for lightweight alarm and status feeds.
+
+**Why different paths for MDM and GEMS**
+
+| Target | Data | Typical mode |
+|---|---|---|
+| MDM | Interval reads, registers, billing data | Bulk, guaranteed delivery (JMS queue, SOAP, or files) |
+| GEMS | Alarms, outages, voltage events, meter status | Event-driven, low latency (JMS topic or REST push) |
+
+**What happens to the data on the way**
+1. HES decodes the raw DLMS/C12 payload into readable values (OBIS codes mapped to names, units, timestamps).
+2. HES wraps it in a standard message (e.g., IEC 61968 XML or JSON).
+3. It publishes to a queue/topic or calls the endpoint.
+4. MDM validates and stores. GEMS updates the grid view and raises alarms.
+5. Acknowledgements and retries handle failures, with undeliverable messages going to the DLQ.
+
+**Security:** HTTPS/TLS, VPN or private network, authentication (certificates, OAuth, or basic auth), and message signing in some setups.
+
+**How to confirm in your project:** check the interface specification (ICD/IDD) between HES, MDM and GEMS, and look at the ActiveMQ console for queue names and the message format (XML vs JSON).
+
+If you tell me whether your interface uses JMS, REST or files, I can give test scenarios for that interface, such as duplicate messages, schema validation and delayed delivery.
